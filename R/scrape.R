@@ -5,7 +5,7 @@ library(janitor)
 url <- "https://www.tudocelular.com/celulares/fichas-tecnicas_1.html?o=2"
 pag <- read_html(url)
 
-n_pages <- 1:30
+n_pages <- 1:80
 url_teste <-
   glue::glue("https://www.tudocelular.com/celulares/fichas-tecnicas_{n_pages}.html?o=2")
 
@@ -21,7 +21,6 @@ df_url <-
 
 tictoc::tic()
 infos <- df_url %>%
-  head(250) %>%
   mutate(urls = str_c("https://www.tudocelular.com", urls)) %>%
   mutate(
     info = map(
@@ -50,23 +49,23 @@ infos <- df_url %>%
           html_text()
 
         custo_beneficio <- page %>%
-          html_element(".phone_column_features:nth-child(2) li:nth-child(1)") %>%
+          html_element("#phone_columns .phone_column_features:nth-child(3) li:nth-child(1)") %>%
           html_text()
 
         hardware_nota <- page %>%
-          html_element(".phone_column_features:nth-child(2) li:nth-child(2)") %>%
+          html_element("#phone_columns .phone_column_features:nth-child(3) li:nth-child(2)") %>%
           html_text()
 
         tela_nota <- page %>%
-          html_element(".phone_column_features:nth-child(2) li:nth-child(3)") %>%
+          html_element(".phone_column_features:nth-child(3) li:nth-child(3)") %>%
           html_text()
 
         camera_nota <- page %>%
-          html_element(".phone_column_features:nth-child(2) li:nth-child(4)") %>%
+          html_element(".phone_column_features:nth-child(3) li:nth-child(4)") %>%
           html_text()
 
         desempenho_nota <- page %>%
-          html_element(".phone_column_features:nth-child(2) li:nth-child(5)") %>%
+          html_element(".phone_column_features:nth-child(3) li:nth-child(5)") %>%
           html_text()
 
         ram <- page %>%
@@ -114,20 +113,31 @@ infos_parsed <- infos %>%
     across(c(custo_beneficio, ends_with("nota")),
            \(x) parse_number(x)),
   ) %>%
-  filter(!is.na(ram)) %>%
+  filter(!is.na(custo_beneficio), ram < 200) %>%
   distinct(.keep_all = TRUE)
+
+readr::write_rds(infos_parsed,
+                 "dados/dados_arrumados.rds")
 
 skimr::skim(infos_parsed)
 
 infos_parsed %>%
-  DataExplorer::plot_histogram()
+  DataExplorer::plot_histogram(geom_histogram_args = list(fill = "darkorange", color = "white"))
 
 
 # ram de 512mb sendo convertida para 512gb (criar função especifica)
+#
+# read_html("https://www.tudocelular.com/Oppo/fichas-tecnicas/n8847/Oppo-A58-4G.html") %>%
+#   html_element("#phone_columns .phone_column_features:nth-child(3) li:nth-child(1)") %>%
+#   html_text()
 
-read_html("https://www.tudocelular.com/Redmi/fichas-tecnicas/n7730/Redmi-K50.html") %>%
-  html_elements("#phone_columns .phone_column_features:nth-child(3) li:nth-child(1)") %>%
-  html_text()
+infos_parsed %>%
+  DataExplorer::plot_missing()
+
+infos_parsed %>%
+  drop_na() %>%
+  keep(is.numeric) %>%
+  lm(custo_beneficio ~ ., data=.) %>% summary()
 
 
 
