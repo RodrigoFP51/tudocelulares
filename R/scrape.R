@@ -111,13 +111,21 @@ infos_parsed <- infos %>%
                     str_detect(ram, "MB") ~ NA_integer_), # nao serao usados ceulares com < 1gb de ram
     marca = str_extract(celular, "^[:alpha:]+"),
     across(c(custo_beneficio, ends_with("nota")),
-           \(x) parse_number(x)),
+           \(x) parse_number(x))
   ) %>%
+  filter(ano != "Fold Out") %>%
+  separate_wider_delim(ano, delim = "/",
+                       names = c("ano", "mes")) %>%
+  separate_wider_delim(dimensao, delim = "x",
+                       names = c("altura", "largura", "espessura")) %>%
+  mutate(across(ano:espessura, readr::parse_number)) %>%
   filter(!is.na(custo_beneficio), ram < 200) %>%
   distinct(.keep_all = TRUE)
 
 readr::write_rds(infos_parsed,
                  "dados/dados_arrumados.rds")
+
+infos_parsed <- read_rds("dados/dados_arrumados.rds")
 
 skimr::skim(infos_parsed)
 
@@ -132,12 +140,33 @@ infos_parsed %>%
 #   html_text()
 
 infos_parsed %>%
+  filter(ano != "Fold Out") %>%
+  separate_wider_delim(ano, delim = "/",
+                       names = c("ano", "mes")) %>%
+  separate_wider_delim(dimensao, delim = "x",
+                       names = c("altura", "largura", "espessura")) %>%
+  mutate(across(ano:espessura, readr::parse_number))
+
+infos_parsed %>%
   DataExplorer::plot_missing()
+
+infos_parsed %>%
+  keep(is.numeric) %>%
+  GGally::ggpairs()
+
+infos_parsed %>%
+  keep(is.numeric) %>%
+  drop_na() %>%
+  corrr::correlate() %>%
+  corrr::rearrange()
+
+infos_parsed %>%
+  keep(is.numeric) %>%
+  ppsr::visualize_pps(y = "custo_beneficio", color_value_low = "#8abef2")
 
 infos_parsed %>%
   drop_na() %>%
   keep(is.numeric) %>%
   lm(custo_beneficio ~ ., data=.) %>% summary()
-
 
 
