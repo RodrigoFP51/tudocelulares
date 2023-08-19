@@ -21,6 +21,7 @@ df_url <-
 
 tictoc::tic()
 infos <- df_url %>%
+  head(30) %>%
   mutate(urls = str_c("https://www.tudocelular.com", urls)) %>%
   mutate(
     info = map(
@@ -36,9 +37,7 @@ infos <- df_url %>%
           html_element("li:nth-child(1) .hoverred b") %>%
           html_text()
 
-        ano <- page %>%
-          html_element("#phone_columns .phone_column_features:nth-child(1) li:nth-child(2)") %>%
-          html_text()
+        ano <- scrape_year_month(page)
 
         dimensao <- page %>%
           html_element("#phone_columns .phone_column_features:nth-child(1) li:nth-child(3)") %>%
@@ -113,7 +112,7 @@ infos_parsed <- infos %>%
     across(c(custo_beneficio, ends_with("nota")),
            \(x) parse_number(x))
   ) %>%
-  filter(ano != "Fold Out") %>%
+  filter(peso <= 250) %>%
   separate_wider_delim(ano, delim = "/",
                        names = c("ano", "mes")) %>%
   separate_wider_delim(dimensao, delim = "x",
@@ -135,30 +134,45 @@ infos_parsed %>%
 
 # ram de 512mb sendo convertida para 512gb (criar função especifica)
 #
-# read_html("https://www.tudocelular.com/Oppo/fichas-tecnicas/n8847/Oppo-A58-4G.html") %>%
-#   html_element("#phone_columns .phone_column_features:nth-child(3) li:nth-child(1)") %>%
-#   html_text()
 
-infos_parsed %>%
-  filter(ano != "Fold Out") %>%
-  separate_wider_delim(ano, delim = "/",
-                       names = c("ano", "mes")) %>%
-  separate_wider_delim(dimensao, delim = "x",
-                       names = c("altura", "largura", "espessura")) %>%
-  mutate(across(ano:espessura, readr::parse_number))
+
+nota_x <- read_html("https://www.tudocelular.com/Samsung/fichas-tecnicas/n8632/Samsung-Galaxy-Z-Fold-5.html") %>%
+  html_element("#phone_columns .phone_column_features:nth-child(3) li:nth-child(3)") %>%
+  html_text()
+
+if(nota_x != "Faixa de Preço"){
+  return(nota_x)
+} else {
+  nota_x <- read_html("https://www.tudocelular.com/Samsung/fichas-tecnicas/n8547/Samsung-Galaxy-A54.html") %>%
+    html_element("#phone_columns .phone_column_features:nth-child(3) li:nth-child(3)") %>%
+    html_text()
+  nota_x
+}
+
+scrape_year_month <- function(pag){
+   ano_x <- pag %>%
+    html_element("#phone_columns .phone_column_features:nth-child(1) li:nth-child(2)") %>%
+    html_text()
+
+  if(ano_x != "Fold Out"){
+    return(ano_x)
+  } else {
+    ano_x <-
+      read_html(url) %>%
+      html_element("#phone_columns .phone_column_features:nth-child(1) li:nth-child(3)") %>%
+      html_text()
+    return(ano_x)
+  }
+
+}
 
 infos_parsed %>%
   DataExplorer::plot_missing()
 
 infos_parsed %>%
   keep(is.numeric) %>%
-  GGally::ggpairs()
-
-infos_parsed %>%
-  keep(is.numeric) %>%
-  drop_na() %>%
-  corrr::correlate() %>%
-  corrr::rearrange()
+  filter(peso <= 250) %>%
+  GGally::ggpairs(lower = list(continuous = "smooth"))
 
 infos_parsed %>%
   keep(is.numeric) %>%
