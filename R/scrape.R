@@ -2,6 +2,37 @@ library(tidyverse)
 library(rvest)
 library(janitor)
 
+scrape_year_month <- function(pag){
+
+  possible_paths <- c(
+    "#phone_columns .phone_column_features:nth-child(1) li:nth-child(2)",
+    "#phone_columns .phone_column_features:nth-child(1) li:nth-child(3)"
+  )
+
+  ano_x <- pag %>%
+    html_element(possible_paths[1]) %>%
+    html_text()
+
+  if(ano_x != "Fold Out"){
+    return(ano_x)
+  } else {
+    ano_x <- pag %>%
+      html_element(possible_paths[2]) %>%
+      html_text()
+    return(ano_x)
+  }
+
+}
+
+scrape_nota <- function(pag){
+
+  possible_paths <- c(
+    ".phone_column_features:nth-child(3) li:nth-child(5)",
+    ".phone_column_features:nth-child(3) li:nth-child(4)"
+  )
+
+}
+
 url <- "https://www.tudocelular.com/celulares/fichas-tecnicas_1.html?o=2"
 pag <- read_html(url)
 
@@ -21,7 +52,7 @@ df_url <-
 
 tictoc::tic()
 infos <- df_url %>%
-  head(30) %>%
+  slice(1:500) %>%
   mutate(urls = str_c("https://www.tudocelular.com", urls)) %>%
   mutate(
     info = map(
@@ -56,7 +87,7 @@ infos <- df_url %>%
           html_text()
 
         tela_nota <- page %>%
-          html_element(".phone_column_features:nth-child(3) li:nth-child(3)") %>%
+          html_element("#phone_columns .phone_column_features:nth-child(3) li:nth-child(3)") %>%
           html_text()
 
         camera_nota <- page %>%
@@ -112,13 +143,13 @@ infos_parsed <- infos %>%
     across(c(custo_beneficio, ends_with("nota")),
            \(x) parse_number(x))
   ) %>%
-  filter(peso <= 250) %>%
+  filter(peso <= 250, ram < 200) %>%
   separate_wider_delim(ano, delim = "/",
                        names = c("ano", "mes")) %>%
   separate_wider_delim(dimensao, delim = "x",
                        names = c("altura", "largura", "espessura")) %>%
-  mutate(across(ano:espessura, readr::parse_number)) %>%
-  filter(!is.na(custo_beneficio), ram < 200) %>%
+  #mutate(across(ano:espessura, readr::parse_number)) %>%
+  #filter(!is.na(custo_beneficio)) %>%
   distinct(.keep_all = TRUE)
 
 readr::write_rds(infos_parsed,
@@ -136,36 +167,6 @@ infos_parsed %>%
 #
 
 
-nota_x <- read_html("https://www.tudocelular.com/Samsung/fichas-tecnicas/n8632/Samsung-Galaxy-Z-Fold-5.html") %>%
-  html_element("#phone_columns .phone_column_features:nth-child(3) li:nth-child(3)") %>%
-  html_text()
-
-if(nota_x != "Faixa de Preço"){
-  return(nota_x)
-} else {
-  nota_x <- read_html("https://www.tudocelular.com/Samsung/fichas-tecnicas/n8547/Samsung-Galaxy-A54.html") %>%
-    html_element("#phone_columns .phone_column_features:nth-child(3) li:nth-child(3)") %>%
-    html_text()
-  nota_x
-}
-
-scrape_year_month <- function(pag){
-   ano_x <- pag %>%
-    html_element("#phone_columns .phone_column_features:nth-child(1) li:nth-child(2)") %>%
-    html_text()
-
-  if(ano_x != "Fold Out"){
-    return(ano_x)
-  } else {
-    ano_x <-
-      read_html(url) %>%
-      html_element("#phone_columns .phone_column_features:nth-child(1) li:nth-child(3)") %>%
-      html_text()
-    return(ano_x)
-  }
-
-}
-
 infos_parsed %>%
   DataExplorer::plot_missing()
 
@@ -175,12 +176,17 @@ infos_parsed %>%
   GGally::ggpairs(lower = list(continuous = "smooth"))
 
 infos_parsed %>%
-  keep(is.numeric) %>%
-  ppsr::visualize_pps(y = "custo_beneficio", color_value_low = "#8abef2")
+  #DataExplorer::dummify(maxcat = 30)
+  select(marca, where(is.numeric)) %>%
+  mutate(marca = fct_lump(marca, n = 9, other_level = "Outro")) %>%
+  ppsr::visualize_pps(y = "custo_beneficio",
+                      color_value_low = "#8abef2",
+                      include_target = FALSE)
 
 infos_parsed %>%
   drop_na() %>%
   keep(is.numeric) %>%
-  lm(custo_beneficio ~ ., data=.) %>% summary()
+  lm(custo_beneficio ~ ., data=.) %>%
+  summary()
 
 
