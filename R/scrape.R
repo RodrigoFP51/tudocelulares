@@ -2,7 +2,13 @@ library(tidyverse)
 library(rvest)
 library(janitor)
 
-scrape_year_month <- function(pag){
+get_info <- function(pag, css_path){
+  pag %>%
+    html_element(css_path) %>%
+    html_text()
+}
+
+scrape_ano_mes <- function(pag){
 
   possible_paths <- c(
     "#phone_columns .phone_column_features:nth-child(1) li:nth-child(2)",
@@ -24,13 +30,19 @@ scrape_year_month <- function(pag){
 
 }
 
-scrape_nota <- function(pag){
+scrape_desempenho <- function(pag){
 
   possible_paths <- c(
     ".phone_column_features:nth-child(3) li:nth-child(5)",
     ".phone_column_features:nth-child(3) li:nth-child(4)"
   )
 
+  nota_x <- get_info(pag, possible_paths[1])
+
+  case_when(
+    is.na(nota_x) ~ get_info(pag, possible_paths[2]),
+    TRUE ~ nota_x
+  )
 }
 
 url <- "https://www.tudocelular.com/celulares/fichas-tecnicas_1.html?o=2"
@@ -48,12 +60,12 @@ df_url <-
       html_attr("href") %>%
       tibble(urls = .)
   }) %>%
-  distinct(.keep_all = TRUE)
+  distinct(.keep_all = TRUE) %>%
+  mutate(urls = str_c("https://www.tudocelular.com", urls))
 
 tictoc::tic()
 infos <- df_url %>%
-  slice(1:500) %>%
-  mutate(urls = str_c("https://www.tudocelular.com", urls)) %>%
+  slice(1:400) %>%
   mutate(
     info = map(
       urls,
@@ -68,7 +80,7 @@ infos <- df_url %>%
           html_element("li:nth-child(1) .hoverred b") %>%
           html_text()
 
-        ano <- scrape_year_month(page)
+        ano <- scrape_ano_mes(page)
 
         dimensao <- page %>%
           html_element("#phone_columns .phone_column_features:nth-child(1) li:nth-child(3)") %>%
@@ -94,9 +106,7 @@ infos <- df_url %>%
           html_element(".phone_column_features:nth-child(3) li:nth-child(4)") %>%
           html_text()
 
-        desempenho_nota <- page %>%
-          html_element(".phone_column_features:nth-child(3) li:nth-child(5)") %>%
-          html_text()
+        desempenho_nota <- scrape_desempenho(page)
 
         ram <- page %>%
           html_element("#phone_columns .phone_column_features:nth-child(5) li:nth-child(5)") %>%
@@ -133,6 +143,7 @@ infos %>%
 
 infos_parsed <- infos %>%
   unnest(info) %>%
+  filter(!str_detect(celular, "Z [Flip|Fold]")) %>%
   mutate(
     across(c(memoria_max, min_preco),
            \(x) parse_number(x, locale = locale(grouping_mark = "."))),
@@ -147,7 +158,7 @@ infos_parsed <- infos %>%
   separate_wider_delim(ano, delim = "/",
                        names = c("ano", "mes")) %>%
   separate_wider_delim(dimensao, delim = "x",
-                       names = c("altura", "largura", "espessura")) %>%
+                       names = c("altura", "largura", "espessura"), too_few = "align_end") %>%
   #mutate(across(ano:espessura, readr::parse_number)) %>%
   #filter(!is.na(custo_beneficio)) %>%
   distinct(.keep_all = TRUE)
