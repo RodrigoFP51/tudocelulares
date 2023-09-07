@@ -65,7 +65,7 @@ df_url <-
 
 tictoc::tic()
 infos <- df_url %>%
-  slice(1:400) %>%
+  slice(1:600) %>%
   mutate(
     info = map(
       urls,
@@ -145,6 +145,7 @@ infos_parsed <- infos %>%
   unnest(info) %>%
   filter(!str_detect(celular, "Z [Flip|Fold]")) %>%
   mutate(
+    min_preco = replace_na(min_preco, "0"),
     across(c(memoria_max, min_preco),
            \(x) parse_number(x, locale = locale(grouping_mark = "."))),
     peso = parse_number(peso, locale = locale(decimal_mark = ".")),
@@ -154,12 +155,13 @@ infos_parsed <- infos %>%
     across(c(custo_beneficio, ends_with("nota")),
            \(x) parse_number(x))
   ) %>%
-  filter(peso <= 250, ram < 200) %>%
+  filter(peso <= 250, ram < 200,
+         !is.na(ram)) %>%
   separate_wider_delim(ano, delim = "/",
                        names = c("ano", "mes")) %>%
   separate_wider_delim(dimensao, delim = "x",
                        names = c("altura", "largura", "espessura"), too_few = "align_end") %>%
-  #mutate(across(ano:espessura, readr::parse_number)) %>%
+  mutate(across(ano:espessura, readr::parse_number)) %>%
   #filter(!is.na(custo_beneficio)) %>%
   distinct(.keep_all = TRUE)
 
